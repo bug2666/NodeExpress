@@ -125,16 +125,21 @@ const forgotPassword = async (req, res) => {
 
         const resetLink = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
 
-        await sendMail({
-            to: user.email,
-            subject: 'Đặt lại mật khẩu',
-            html: `
-                <h2>Đặt lại mật khẩu</h2>
-                <p>Click vào link bên dưới để đặt lại mật khẩu:</p>
-                <a href="${resetLink}">${resetLink}</a>
-                <p>Link hết hạn sau 15 phút.</p>
-            `
-        });
+        try {
+            await sendMail({
+                to: user.email,
+                subject: 'Đặt lại mật khẩu',
+                html: `
+                    <h2>Đặt lại mật khẩu</h2>
+                    <p>Click vào link bên dưới để đặt lại mật khẩu:</p>
+                    <a href="${resetLink}">${resetLink}</a>
+                    <p>Link hết hạn sau 15 phút.</p>
+                `
+            });
+        } catch (mailError) {
+            console.error('Send reset password email failed:', mailError);
+            return res.status(500).json({ message: 'Không gửi được email đặt lại mật khẩu' });
+        }
 
         return res.json({
             message: 'Nếu email tồn tại, link đặt lại mật khẩu sẽ được gửi'
