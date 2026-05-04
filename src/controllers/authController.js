@@ -18,7 +18,7 @@ const register = async (req, res) => {
         }
 
         if (password.length < 6) {
-            return res.status(400).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự' });
+            return res.status(422).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự' });
         }
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
