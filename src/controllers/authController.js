@@ -181,14 +181,14 @@ const resetPassword = async (req, res) => {
         const user = await User.findByResetToken(hashedToken);
 
         if (!user) {
-            return res.status(400).json({ message: 'Token không hợp lệ hoặc đã hết hạn' });
+            return res.status(400).json({ message: 'Link đặt lại mật khẩu không hợp lệ, đã hết hạn hoặc đã được sử dụng' });
         }
 
         const expiresAt = new Date(user.resetPasswordExpires);
 
         if (expiresAt < new Date()) {
             await User.clearResetToken(user.id);
-            return res.status(400).json({ message: 'Token đã hết hạn' });
+            return res.status(400).json({ message: 'Link đặt lại mật khẩu đã hết hạn' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
