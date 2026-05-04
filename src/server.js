@@ -1,3 +1,11 @@
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled Rejection:', error);
+});
+
 require('dotenv').config();
 const app = require('./app');
 const pool = require('./configs/mysql');
