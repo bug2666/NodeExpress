@@ -13,9 +13,23 @@ const register = async (req, res) => {
     try {
         const { name, email, password, phone } = req.body;
 
+        if (!name || !email || !password) {
+            return res.status(422).json({ message: 'Vui lòng nhập đầy đủ tên, email và mật khẩu' });
+        }
+
+        if (password.length < 6) {
+            return res.status(422).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự' });
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!emailRegex.test(email)) {
+            return res.status(422).json({ message: 'Email không hợp lệ' });
+        }
+
         const existingUser = await User.findByEmail(email);
         if (existingUser) {
-            return res.status(400).json({ message: 'Email đã được đăng kí' });
+            return res.status(422).json({ message: 'Email đã được đăng kí' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -41,6 +55,7 @@ const register = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
 
 const login = async (req, res) => {
     try {
