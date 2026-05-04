@@ -14,11 +14,11 @@ const register = async (req, res) => {
         const { name, email, password, phone } = req.body;
 
         if (!name || !email || !password) {
-            return res.status(422).json({ message: 'Vui lòng nhập đầy đủ tên, email và mật khẩu' });
+            return res.status(400).json({ message: 'Vui lòng nhập đầy đủ tên, email và mật khẩu' });
         }
 
         if (password.length < 6) {
-            return res.status(422).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự' });
+            return res.status(400).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự' });
         }
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -65,12 +65,12 @@ const login = async (req, res) => {
         }
         const user = await User.findByEmail(email);
         if (!user) {
-            return res.status(400).json({ message: "Tài khoản hoặc mật khẩu không đúng!" });
+            return res.status(401).json({ message: "Tài khoản hoặc mật khẩu không đúng!" });
         }
         else {
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) {
-                return res.status(400).json({ message: "Tài khoản hoặc mật khẩu không đúng!" });
+                return res.status(401).json({ message: "Tài khoản hoặc mật khẩu không đúng!" });
             }
             else {
                 res.json({
