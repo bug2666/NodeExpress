@@ -91,6 +91,9 @@ const login = async (req, res) => {
     }
 };
 
+const logout = (req, res) => {
+    return res.json({ message: 'Đăng xuất thành công' });
+};
 
 /* quên mật khẩu */
 const forgotPassword = async (req, res) => {
@@ -192,5 +195,6 @@ module.exports = {
     register,
     login,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    logout
 };
