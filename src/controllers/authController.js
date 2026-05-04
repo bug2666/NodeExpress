@@ -137,7 +137,13 @@ const forgotPassword = async (req, res) => {
                 `
             });
         } catch (mailError) {
-            console.error('Send reset password email failed:', mailError);
+            console.error('Send reset password email failed:', {
+                message: mailError.message,
+                code: mailError.code,
+                command: mailError.command,
+                response: mailError.response,
+                responseCode: mailError.responseCode
+            });
             return res.status(500).json({ message: 'Không gửi được email đặt lại mật khẩu' });
         }
 
