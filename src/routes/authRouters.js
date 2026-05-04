@@ -1,6 +1,7 @@
 /* file này có chức năng định nghĩa cho các endpoint và nối chúng với controller */
 
 const express = require('express');
+const router = express.Router();
 const { register, login, forgotPassword, resetPassword,logout  } = require('../controllers/authController');
 
 const router = express.Router();
