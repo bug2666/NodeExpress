@@ -4,10 +4,15 @@ const {
   getProductById,
   createProduct,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  createVariant,
+  updateVariant,
+  deleteVariant,
+  createImage,
+  updateImage,
+  deleteImage
 } = require('../controllers/productController');
 
-//nạp phân quyền
 const authMiddleware = require('../middlewares/authMiddleware');
 const adminMiddleware = require('../middlewares/adminMiddleware');
 
@@ -16,9 +21,16 @@ const router = express.Router();
 router.get('/getProducts', getProducts);
 router.get('/getProductById/:id', getProductById);
 
-/* phân quyền admin*/
-router.post('/createProduct',authMiddleware, adminMiddleware, createProduct);
-router.put('/updateProduct/:id',authMiddleware, adminMiddleware, updateProduct);
-router.delete('/deleteProduct/:id',authMiddleware, adminMiddleware, deleteProduct);
+router.post('/createProduct', authMiddleware, adminMiddleware, createProduct);
+router.put('/updateProduct/:id', authMiddleware, adminMiddleware, updateProduct);
+router.delete('/deleteProduct/:id', authMiddleware, adminMiddleware, deleteProduct);
+
+router.post('/:productId/variants', authMiddleware, adminMiddleware, createVariant);
+router.put('/variants/:variantId', authMiddleware, adminMiddleware, updateVariant);
+router.delete('/variants/:variantId', authMiddleware, adminMiddleware, deleteVariant);
+
+router.post('/:productId/images', authMiddleware, adminMiddleware, createImage);
+router.put('/images/:imageId', authMiddleware, adminMiddleware, updateImage);
+router.delete('/images/:imageId', authMiddleware, adminMiddleware, deleteImage);
 
 module.exports = router;

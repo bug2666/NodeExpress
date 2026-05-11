@@ -87,10 +87,156 @@ const deleteProduct = async (req, res) => {
   }
 };
 
+const createVariant = async (req, res) => {
+  try {
+    const productId = Number(req.params.productId);
+    const { size, color, stock, price, sku } = req.body;
+
+    if (!productId || !size?.trim() || !color?.trim()) {
+      return res.status(400).json({ message: 'Vui lòng nhập đủ size và màu' });
+    }
+
+    if (Number(stock) < 0 || Number(price) < 0) {
+      return res.status(400).json({ message: 'Tồn kho và giá không được âm' });
+    }
+
+    const product = await Product.createVariant(productId, {
+      size,
+      color,
+      stock: Number(stock ?? 0),
+      price: Number(price ?? 0),
+      sku
+    });
+
+    return res.status(201).json(product);
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'Biến thể hoặc SKU đã tồn tại' });
+    }
+
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const updateVariant = async (req, res) => {
+  try {
+    const variantId = Number(req.params.variantId);
+    const { size, color, stock, price, sku } = req.body;
+
+    if (!variantId || !size?.trim() || !color?.trim()) {
+      return res.status(400).json({ message: 'Vui lòng nhập đủ size và màu' });
+    }
+
+    if (Number(stock) < 0 || Number(price) < 0) {
+      return res.status(400).json({ message: 'Tồn kho và giá không được âm' });
+    }
+
+    const product = await Product.updateVariant(variantId, {
+      size,
+      color,
+      stock: Number(stock ?? 0),
+      price: Number(price ?? 0),
+      sku
+    });
+
+    return res.json(product);
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'Không tìm thấy biến thể' });
+    }
+
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'Biến thể hoặc SKU đã tồn tại' });
+    }
+
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteVariant = async (req, res) => {
+  try {
+    const variantId = Number(req.params.variantId);
+    const product = await Product.deleteVariant(variantId);
+
+    if (!product) {
+      return res.status(404).json({ message: 'Không tìm thấy biến thể' });
+    }
+
+    return res.json(product);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const createImage = async (req, res) => {
+  try {
+    const productId = Number(req.params.productId);
+    const { imageUrl, sortOrder } = req.body;
+
+    if (!productId || !imageUrl?.trim()) {
+      return res.status(400).json({ message: 'Vui lòng nhập URL ảnh' });
+    }
+
+    const product = await Product.createImage(productId, {
+      imageUrl,
+      sortOrder: Number(sortOrder ?? 0)
+    });
+
+    return res.status(201).json(product);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const updateImage = async (req, res) => {
+  try {
+    const imageId = Number(req.params.imageId);
+    const { imageUrl, sortOrder } = req.body;
+
+    if (!imageId || !imageUrl?.trim()) {
+      return res.status(400).json({ message: 'Vui lòng nhập URL ảnh' });
+    }
+
+    const product = await Product.updateImage(imageId, {
+      imageUrl,
+      sortOrder: Number(sortOrder ?? 0)
+    });
+
+    return res.json(product);
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ message: 'Không tìm thấy ảnh' });
+    }
+
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteImage = async (req, res) => {
+  try {
+    const imageId = Number(req.params.imageId);
+    const product = await Product.deleteImage(imageId);
+
+    if (!product) {
+      return res.status(404).json({ message: 'Không tìm thấy ảnh' });
+    }
+
+    return res.json(product);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getProducts,
   getProductById,
   createProduct,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  createVariant,
+  updateVariant,
+  deleteVariant,
+  createImage,
+  updateImage,
+  deleteImage
 };

@@ -13,12 +13,12 @@ const adminMiddleware = require('../middlewares/adminMiddleware');
 const router = express.Router();
 
 router.post('/', authMiddleware, createOrder);
-router.get('/my-orders', authMiddleware, getMyOrders);
-router.get('/:id', authMiddleware, getMyOrderById);
-
 
 router.get('/admin/all', authMiddleware, adminMiddleware, getAllOrders);
 router.put('/admin/:id/status', authMiddleware, adminMiddleware, updateOrderStatus);
+
+router.get('/my-orders', authMiddleware, getMyOrders);
+router.get('/:id', authMiddleware, getMyOrderById);
 
 
 module.exports = router;

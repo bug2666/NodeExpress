@@ -197,5 +197,114 @@ const deleteProduct = async (id) => {
   }
 };
 
+const createVariant = async (productId, { size, color, stock, price, sku }) => {
+  await prisma.product_variants.create({
+    data: {
+      product_id: productId,
+      size: size.trim(),
+      color: color.trim(),
+      stock,
+      price,
+      sku: sku?.trim() || null
+    }
+  });
 
-module.exports = { findAll, findById, createProduct, updateProduct, deleteProduct };
+  return findById(productId);
+};
+
+const updateVariant = async (variantId, { size, color, stock, price, sku }) => {
+  const variant = await prisma.product_variants.update({
+    where: {
+      id: variantId
+    },
+    data: {
+      size: size.trim(),
+      color: color.trim(),
+      stock,
+      price,
+      sku: sku?.trim() || null
+    }
+  });
+
+  return findById(variant.product_id);
+};
+
+const deleteVariant = async (variantId) => {
+  const variant = await prisma.product_variants.findUnique({
+    where: {
+      id: variantId
+    }
+  });
+
+  if (!variant) {
+    return null;
+  }
+
+  await prisma.product_variants.delete({
+    where: {
+      id: variantId
+    }
+  });
+
+  return findById(variant.product_id);
+};
+
+const createImage = async (productId, { imageUrl, sortOrder }) => {
+  await prisma.product_images.create({
+    data: {
+      product_id: productId,
+      image_url: imageUrl.trim(),
+      sort_order: sortOrder ?? 0
+    }
+  });
+
+  return findById(productId);
+};
+
+const updateImage = async (imageId, { imageUrl, sortOrder }) => {
+  const image = await prisma.product_images.update({
+    where: {
+      id: imageId
+    },
+    data: {
+      image_url: imageUrl.trim(),
+      sort_order: sortOrder ?? 0
+    }
+  });
+
+  return findById(image.product_id);
+};
+
+const deleteImage = async (imageId) => {
+  const image = await prisma.product_images.findUnique({
+    where: {
+      id: imageId
+    }
+  });
+
+  if (!image) {
+    return null;
+  }
+
+  await prisma.product_images.delete({
+    where: {
+      id: imageId
+    }
+  });
+
+  return findById(image.product_id);
+};
+
+module.exports = {
+  findAll,
+  findById,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  createVariant,
+  updateVariant,
+  deleteVariant,
+  createImage,
+  updateImage,
+  deleteImage
+};
