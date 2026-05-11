@@ -12,6 +12,7 @@
     "test:db": "node src/configs/test-db.js"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -21,9 +22,11 @@
     "mysql": "^2.18.1",
     "mysql2": "^3.22.3",
     "nodemailer": "^8.0.7",
+    "prisma": "^6.19.3",
     "resend": "^6.12.2"
   },
   "devDependencies": {
+    "@types/node": "^25.6.2",
     "nodemon": "^3.1.14"
   }
 }

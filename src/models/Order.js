@@ -1,172 +1,233 @@
-const pool = require('../configs/mysql');
-/* nhiều bước quá nên phải dùng beginTransaction tránh việc 1 cái lỗi thì nó nghi vào db lỗi */
+const prisma = require('../configs/prisma');
+
+
+
+/* admin */
+const findAllOrders = async () => {
+    const orders = await prisma.orders.findMany({
+        orderBy: {
+            id: 'desc'
+        },
+        include: {
+            users: true
+        }
+    });
+
+    return orders.map((order) => {
+        return {
+            ...formatOrder(order),
+            customerName: order.users.name,
+            customerEmail: order.users.email
+        };
+    });
+};
+
+const updateStatus = async (orderId, status) => {
+    const existingOrder = await prisma.orders.findUnique({
+        where: {
+            id: orderId
+        }
+    });
+
+    if (!existingOrder) {
+        return null;
+    }
+
+    const updatedOrder = await prisma.orders.update({
+        where: {
+            id: orderId
+        },
+        data: {
+            order_status: status
+        },
+        include: {
+            users: true
+        }
+    });
+
+    return {
+        ...formatOrder(updatedOrder),
+        customerName: updatedOrder.users.name,
+        customerEmail: updatedOrder.users.email
+    };
+};
+
+/* user */
+const formatPaymentMethod = (paymentMethod) => {
+    if (paymentMethod === 'bank') {
+        return 'bank_transfer';
+    }
+
+    return paymentMethod;
+};
+
+const formatOrder = (order) => {
+    return {
+        id: order.id,
+        userId: order.user_id,
+        totalAmount: order.total_price,
+        status: order.order_status,
+        shippingName: order.recipient_name,
+        shippingPhone: order.recipient_phone,
+        shippingAddress: order.shipping_address,
+        paymentMethod: order.payment_method,
+        createdAt: order.created_at
+    };
+};
+
 const createOrderFromCart = async (userId, { shippingName, shippingPhone, shippingAddress, paymentMethod }) => {
-    const connection = await pool.getConnection();
-
-    try {
-        await connection.beginTransaction();
-
-        const [cartRows] = await connection.execute(
-            'SELECT id FROM carts WHERE user_id = ? LIMIT 1',
-            [userId]
-        );
-
-        const cart = cartRows[0];
+    return prisma.$transaction(async (transactionClient) => {
+        const cart = await transactionClient.carts.findUnique({
+            where: {
+                user_id: userId
+            }
+        });
 
         if (!cart) {
             throw new Error('Giỏ hàng không tồn tại');
         }
 
-        const [items] = await connection.execute(
-            `SELECT
-                cart_items.product_id AS productId,
-                cart_items.variant_id AS variantId,
-                cart_items.quantity AS quantity,
-                cart_items.unit_price AS unitPrice,
-                product_variants.stock AS stock
-            FROM cart_items
-            JOIN product_variants ON product_variants.id = cart_items.variant_id
-            WHERE cart_items.cart_id = ?`,
-            [cart.id]
-        );
+        const items = await transactionClient.cart_items.findMany({
+            where: {
+                cart_id: cart.id
+            },
+            include: {
+                products: {
+                    include: {
+                        product_images: {
+                            orderBy: [
+                                { sort_order: 'asc' },
+                                { id: 'asc' }
+                            ],
+                            take: 1
+                        }
+                    }
+                },
+                product_variants: true
+            }
+        });
 
         if (items.length === 0) {
             throw new Error('Giỏ hàng đang trống');
         }
 
         for (const item of items) {
-            if (item.quantity > item.stock) {
+            if (item.quantity > item.product_variants.stock) {
                 throw new Error('Có sản phẩm vượt quá tồn kho');
             }
         }
 
         const total = items.reduce((sum, item) => {
-            return sum + Number(item.unitPrice) * Number(item.quantity);
+            return sum + Number(item.unit_price) * Number(item.quantity);
         }, 0);
 
-        const [orderResult] = await connection.execute(
-            `INSERT INTO orders
-                (user_id, total_amount, status, shipping_name, shipping_phone, shipping_address, payment_method)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-                userId,
-                total,
-                'pending',
-                shippingName,
-                shippingPhone,
-                shippingAddress,
-                paymentMethod
-            ]
-        );
-
-        const orderId = orderResult.insertId;
+        const order = await transactionClient.orders.create({
+            data: {
+                user_id: userId,
+                total_price: total,
+                order_status: 'pending',
+                payment_status: 'pending',
+                recipient_name: shippingName,
+                recipient_phone: shippingPhone,
+                shipping_address: shippingAddress,
+                payment_method: formatPaymentMethod(paymentMethod)
+            }
+        });
 
         for (const item of items) {
-            await connection.execute(
-                `INSERT INTO order_items
-                    (order_id, product_id, variant_id, quantity, unit_price)
-                 VALUES (?, ?, ?, ?, ?)`,
-                [
-                    orderId,
-                    item.productId,
-                    item.variantId,
-                    item.quantity,
-                    item.unitPrice
-                ]
-            );
+            const firstImage = item.products.product_images[0];
+            const unitPrice = Number(item.unit_price);
+            const subtotal = unitPrice * Number(item.quantity);
 
-            await connection.execute(
-                'UPDATE product_variants SET stock = stock - ? WHERE id = ?',
-                [item.quantity, item.variantId]
-            );
+            await transactionClient.order_items.create({
+                data: {
+                    order_id: order.id,
+                    product_id: item.product_id,
+                    variant_id: item.variant_id,
+                    product_name_snapshot: item.products.name,
+                    image_snapshot: firstImage?.image_url || null,
+                    size_snapshot: item.product_variants.size,
+                    color_snapshot: item.product_variants.color,
+                    quantity: item.quantity,
+                    unit_price: unitPrice,
+                    subtotal
+                }
+            });
+
+            await transactionClient.product_variants.update({
+                where: {
+                    id: item.variant_id
+                },
+                data: {
+                    stock: {
+                        decrement: item.quantity
+                    }
+                }
+            });
         }
 
-        await connection.execute(
-            'DELETE FROM cart_items WHERE cart_id = ?',
-            [cart.id]
-        );
+        await transactionClient.cart_items.deleteMany({
+            where: {
+                cart_id: cart.id
+            }
+        });
 
-        await connection.commit();
-
-        return findById(orderId, userId);
-    } catch (error) {
-        await connection.rollback();
-        throw error;
-    } finally {
-        connection.release();
-    }
+        return findById(order.id, userId, transactionClient);
+    });
 };
 
 const findMyOrders = async (userId) => {
-    const [rows] = await pool.execute(
-        `SELECT
-            id,
-            user_id AS userId,
-            total_amount AS totalAmount,
-            status,
-            shipping_name AS shippingName,
-            shipping_phone AS shippingPhone,
-            shipping_address AS shippingAddress,
-            payment_method AS paymentMethod,
-            created_at AS createdAt
-        FROM orders
-        WHERE user_id = ?
-        ORDER BY id DESC`,
-        [userId]
-    );
+    const orders = await prisma.orders.findMany({
+        where: {
+            user_id: userId
+        },
+        orderBy: {
+            id: 'desc'
+        }
+    });
 
-    return rows;
+    return orders.map((order) => {
+        return formatOrder(order);
+    });
 };
 
-const findById = async (orderId, userId) => {
-    const [orders] = await pool.execute(
-        `SELECT
-            id,
-            user_id AS userId,
-            total_amount AS totalAmount,
-            status,
-            shipping_name AS shippingName,
-            shipping_phone AS shippingPhone,
-            shipping_address AS shippingAddress,
-            payment_method AS paymentMethod,
-            created_at AS createdAt
-        FROM orders
-        WHERE id = ? AND user_id = ?
-        LIMIT 1`,
-        [orderId, userId]
-    );
-
-    const order = orders[0];
+const findById = async (orderId, userId, client = prisma) => {
+    const order = await client.orders.findFirst({
+        where: {
+            id: orderId,
+            user_id: userId
+        },
+        include: {
+            order_items: true
+        }
+    });
 
     if (!order) {
         return null;
     }
 
-    const [items] = await pool.execute(
-        `SELECT
-            order_items.id,
-            order_items.product_id AS productId,
-            order_items.variant_id AS variantId,
-            order_items.quantity,
-            order_items.unit_price AS unitPrice,
-            products.name AS productName,
-            product_variants.size,
-            product_variants.color
-        FROM order_items
-        JOIN products ON products.id = order_items.product_id
-        JOIN product_variants ON product_variants.id = order_items.variant_id
-        WHERE order_items.order_id = ?`,
-        [order.id]
-    );
-
     return {
-        ...order,
-        items
+        ...formatOrder(order),
+        items: order.order_items.map((item) => {
+            return {
+                id: item.id,
+                productId: item.product_id,
+                variantId: item.variant_id,
+                quantity: item.quantity,
+                unitPrice: item.unit_price,
+                productName: item.product_name_snapshot,
+                size: item.size_snapshot,
+                color: item.color_snapshot
+            };
+        })
     };
 };
 
 module.exports = {
     createOrderFromCart,
     findMyOrders,
-    findById
+    findById,
+    findAllOrders,
+    updateStatus
 };
+

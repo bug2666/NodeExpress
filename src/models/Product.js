@@ -1,154 +1,201 @@
-const pool = require('../configs/mysql');
+const prisma = require('../configs/prisma');
 
 const findAll = async () => {
-  const [rows] = await pool.execute(`
-    SELECT
-      p.id,
-      p.name,
-      p.description,
-      p.base_price AS basePrice,
-      p.is_active AS isActive,
-      p.created_at AS createdAt,
-      p.updated_at AS updatedAt,
-      c.id AS categoryId,
-      c.name AS categoryName,
-      b.id AS brandId,
-      b.name AS brandName,
-      pi.image_url AS imageUrl
-    FROM products p
-    JOIN categories c ON c.id = p.category_id
-    JOIN brands b ON b.id = p.brand_id
-    LEFT JOIN product_images pi
-      ON pi.product_id = p.id
-      AND pi.sort_order = (
-        SELECT MIN(pi2.sort_order)
-        FROM product_images pi2
-        WHERE pi2.product_id = p.id
-      )
-    ORDER BY p.id DESC
-  `);
+  const products = await prisma.products.findMany({
+    orderBy: {
+      id: 'desc'
+    },
+    include: {
+      categories: true, /* nối với bảng */
+      brands: true,
+      product_images: {
+        orderBy: [
+          { sort_order: 'asc' },
+          { id: 'asc' }
+        ],
+        take: 1
+      }
+    }
+  });
 
-  return rows;
+  return products.map((product) => {
+    const firstImage = product.product_images[0];
+
+    return {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      basePrice: product.base_price,
+      isActive: product.is_active ? 1 : 0,
+      createdAt: product.created_at,
+      updatedAt: product.updated_at,
+      categoryId: product.categories.id,
+      categoryName: product.categories.name,
+      brandId: product.brands.id,
+      brandName: product.brands.name,
+      imageUrl: firstImage?.image_url || null
+    };
+  });
 };
+
 
 const findImagesByProductId = async (productId) => {
-  const [rows] = await pool.execute(`
-    SELECT
-      id,
-      image_url AS imageUrl,
-      sort_order AS sortOrder,
-      created_at AS createdAt
-    FROM product_images
-    WHERE product_id = ?
-    ORDER BY sort_order ASC, id ASC
-  `, [productId]);
+  const images = await prisma.product_images.findMany({
+    where: {
+      product_id: productId
+    },
+    orderBy: [
+      { sort_order: 'asc' },
+      { id: 'asc' }
+    ]
+  });
+  return images.map((image) => {
+    return {
+      id: image.id,
+      imageUrl: image.image_url,
+      sortOrder: image.sort_order,
+      createdAt: image.created_at
+    };
+  });
+}
 
-  return rows;
-};
 
 const findVariantsByProductId = async (productId) => {
-  const [rows] = await pool.execute(`
-    SELECT
-      id,
-      product_id AS productId,
-      size,
-      color,
-      stock,
-      price,
-      sku,
-      created_at AS createdAt,
-      updated_at AS updatedAt
-    FROM product_variants
-    WHERE product_id = ?
-    ORDER BY size ASC, color ASC
-  `, [productId]);
+  const variants = await prisma.product_variants.findMany({
+    where: {
+      product_id: productId
+    },
+    orderBy: [
+      { size: 'asc' },
+      { color: 'asc' }
+    ]
+  });
 
-  return rows;
-};
+  return variants.map((variant) => {
+    return {
+      id: variant.id,
+      productId: variant.product_id,
+      size: variant.size,
+      color: variant.color,
+      stock: variant.stock,
+      price: variant.price,
+      sku: variant.sku,
+      createdAt: variant.created_at,
+      updatedAt: variant.updated_at
+    };
+  });
+
+}
+
 
 const findById = async (id) => {
-  const [rows] = await pool.execute(`
-    SELECT
-      p.id,
-      p.name,
-      p.description,
-      p.base_price AS basePrice,
-      p.is_active AS isActive,
-      p.created_at AS createdAt,
-      p.updated_at AS updatedAt,
-      c.id AS categoryId,
-      c.name AS categoryName,
-      b.id AS brandId,
-      b.name AS brandName,
-      pi.image_url AS imageUrl
-    FROM products p
-    JOIN categories c ON c.id = p.category_id
-    JOIN brands b ON b.id = p.brand_id
-    LEFT JOIN product_images pi
-      ON pi.product_id = p.id
-      AND pi.sort_order = (
-        SELECT MIN(pi2.sort_order)
-        FROM product_images pi2
-        WHERE pi2.product_id = p.id
-      )
-    WHERE p.id = ?
-    LIMIT 1
-  `, [id]);
-
-  const product = rows[0];
+  const product = await prisma.products.findUnique({
+    where: {
+      id
+    },
+    include: {
+      categories: true,
+      brands: true,
+      product_images: {
+        orderBy: [
+          { sort_order: 'asc' },
+          { id: 'asc' }
+        ],
+        take: 1
+      }
+    }
+  });
 
   if (!product) {
     return null;
   }
 
+  const firstImage = product.product_images[0];
   const images = await findImagesByProductId(id);
   const variants = await findVariantsByProductId(id);
 
   return {
-    ...product,
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    basePrice: product.base_price,
+    isActive: product.is_active ? 1 : 0,
+    createdAt: product.created_at,
+    updatedAt: product.updated_at,
+    categoryId: product.categories.id,
+    categoryName: product.categories.name,
+    brandId: product.brands.id,
+    brandName: product.brands.name,
+    imageUrl: firstImage?.image_url || null,
     images,
     variants
   };
 };
 
 const createProduct = async ({ name, description, categoryId, brandId, basePrice, isActive }) => {
-  const [result] = await pool.execute(`
-    INSERT INTO products (name, description, category_id, brand_id, base_price, is_active)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `, [
-    name?.trim(),
-    description,
-    categoryId,
-    brandId,
-    basePrice ?? 0,
-    isActive ?? 1
-  ]);
+  const product = await prisma.products.create({
+    data: {
+      name: name?.trim(),
+      description,
+      category_id: categoryId,
+      brand_id: brandId,
+      base_price: basePrice ?? 0,
+      is_active: Boolean(isActive ?? 1)
+    }
+  });
 
-  return findById(result.insertId);
+  return findById(product.id);
 };
 
-const updateProduct = async (id, { name, description, categoryId, brandId, basePrice, isActive }) => {
-  const [result] = await pool.execute(`
-    UPDATE products
-    SET name = ?, description = ?, category_id = ?, brand_id = ?, base_price = ?, is_active = ?
-    WHERE id = ?
-  `, [
-    name?.trim(),
-    description,
-    categoryId,
-    brandId,
-    basePrice,
-    isActive,
-    id
-  ]);
 
-  if (result.affectedRows === 0) return null;
+
+
+const updateProduct = async (id, { name, description, categoryId, brandId, basePrice, isActive }) => {
+  const existingProduct = await prisma.products.findUnique({
+    where: {
+      id
+    }
+  });
+
+  if (!existingProduct) {
+    return null;
+  }
+
+  await prisma.products.update({
+    where: {
+      id
+    },
+    data: {
+      name: name?.trim(),
+      description,
+      category_id: categoryId,
+      brand_id: brandId,
+      base_price: basePrice,
+      is_active: Boolean(isActive)
+    }
+  });
+
   return findById(id);
 };
 
+
 const deleteProduct = async (id) => {
-  const [result] = await pool.execute(`DELETE FROM products WHERE id = ?`, [id]);
-  return result.affectedRows > 0;
+  try {
+    await prisma.products.delete({
+      where: {
+        id
+      }
+    });
+
+    return true;
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return false;
+    }
+
+    throw error;
+  }
 };
+
 
 module.exports = { findAll, findById, createProduct, updateProduct, deleteProduct };

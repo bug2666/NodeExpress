@@ -1,86 +1,155 @@
-const pool = require('../configs/mysql'); // thư viện dùng để thao tác với DB
+const prisma = require('../configs/prisma');
 
-//đặt luật cho dữ liệu đầu vào của người dùng để lưu vào DB
 
-const findByEmail = async (email) => {
-  const [rows] = await pool.execute(
-    'SELECT id, name, email, password, phone, role FROM users WHERE email = ? LIMIT 1',
-    [email]
-  );
-  return rows[0] || null;
+// định dạng lại data
+const formatUser = (user) => {
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    password: user.password,
+    phone: user.phone,
+    role: user.role,
+    created_at: user.created_at,
+    updated_at: user.updated_at
+  };
 };
-/* rows chỉ có sau câu SELECT */
+
+
+//tìm duy nhất
+const findByEmail = async (email) => {
+  const user = await prisma.users.findUnique({
+    where: {
+      email
+    }
+  });
+
+  return formatUser(user);
+};
+
 
 const findById = async (id) => {
-  const [rows] = await pool.execute(
-    'SELECT id, name, email, phone, role, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
-    [id]
-  );
-  return rows[0] || null;
+  const user = await prisma.users.findUnique({
+    where: {
+      id
+    }
+  });
+
+  return formatUser(user);
 };
 
 const createUser = async ({ name, email, password, phone, role = 'user' }) => {
-  const [result] = await pool.execute(
-    'INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, ?)',
-    [name, email, password, phone || null, role]
-  );
+  const user = await prisma.users.create({
+    data: {
+      name,
+      email,
+      password,
+      phone: phone || null,
+      role
+    }
+  });
 
-  return findById(result.insertId);
+  return formatUser(user);
 };
 
 
 const updateProfileById = async (id, { name, phone }) => {
-  const [result] = await pool.execute(
-    'UPDATE users SET name = ?, phone = ? WHERE id = ?',
-    [name, phone || null, id]
-  );
-  if (result.affectedRows === 0) return null;
-  return findById(id);
+  try {
+    const user = await prisma.users.update({
+      where: {
+        id
+      },
+      data: {
+        name,
+        phone: phone || null
+      }
+    });
+
+    return formatUser(user);
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return null;
+    }
+
+    throw error;
+  }
 };
 
 /* reset pass */
 const saveResetToken = async (userId, token, expiresAt) => {
-  await pool.execute(
-    `UPDATE users
-         SET reset_password_token = ?, reset_password_expires = ?
-         WHERE id = ?`,
-    [token, expiresAt, userId]
-  );
+  await prisma.users.update({
+    where: {
+      id: userId
+    },
+    data: {
+      reset_password_token: token,
+      reset_password_expires: expiresAt
+    }
+  });
 };
 
 const findByResetToken = async (token) => {
-  const [rows] = await pool.execute(
-    `SELECT id, name, email, reset_password_expires AS resetPasswordExpires
-         FROM users
-         WHERE reset_password_token = ?
-         LIMIT 1`,
-    [token]
-  );
+  const user = await prisma.users.findFirst({
+    where: {
+      reset_password_token: token
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      reset_password_expires: true
+    }
+  });
 
-  return rows[0] || null;
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    resetPasswordExpires: user.reset_password_expires
+  };
 };
 
 const updatePassword = async (userId, hashedPassword) => {
-  await pool.execute(
-    `UPDATE users
-         SET password = ?
-         WHERE id = ?`,
-    [hashedPassword, userId]
-  );
+  await prisma.users.update({
+    where: {
+      id: userId
+    },
+    data: {
+      password: hashedPassword
+    }
+  });
 };
 
 const clearResetToken = async (userId) => {
-  await pool.execute(
-    `UPDATE users
-         SET reset_password_token = NULL,
-             reset_password_expires = NULL
-         WHERE id = ?`,
-    [userId]
-  );
+  try {
+    await prisma.users.update({
+      where: {
+        id: userId
+      },
+      data: {
+        reset_password_token: null,
+        reset_password_expires: null
+      }
+    });
+    return true;
+
+  } catch (error) {
+    if (error.code === 'P2025') {
+      return null;
+    }
+    throw error
+  }
 };
 
 
-/* result chỉ có sau câu INSERT */
 module.exports = {
   findByEmail,
   findById,

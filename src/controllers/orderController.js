@@ -1,5 +1,49 @@
 const Order = require('../models/Order');
 
+
+const getAllOrders = async (req, res) => {
+    try {
+        const orders = await Order.findAllOrders();
+
+        return res.json(orders);
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+const updateOrderStatus = async (req, res) => {
+    try {
+        const orderId = Number(req.params.id);
+        const { status } = req.body;
+
+        const allowedStatuses = [
+            "pending",
+            "shipping",
+            "delivered",
+            "completed",
+            "cancelled"
+        ];
+
+        if (!allowedStatuses.includes(status)) {
+            return res.status(400).json({ message: "Trạng thái đơn hàng không hợp lệ" });
+        }
+
+        const order = await Order.updateStatus(orderId, status);
+
+        if (!order) {
+            return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+        }
+
+        return res.json(order);
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
+};
+
+
+
+
+
 const createOrder = async (req, res) => {
     try {
         const userId = req.user.userId;
@@ -56,5 +100,8 @@ const getMyOrderById = async (req, res) => {
 module.exports = {
     createOrder,
     getMyOrders,
-    getMyOrderById
+    getMyOrderById,
+    getAllOrders,
+    updateOrderStatus
 };
+
