@@ -20,6 +20,10 @@ const formatUser = (user) => {
 };
 
 
+
+
+
+
 //tìm duy nhất
 const findByEmail = async (email) => {
   const user = await prisma.users.findUnique({
@@ -150,6 +154,24 @@ const clearResetToken = async (userId) => {
 };
 
 
+/* user GG */
+
+
+const createGoogleUser = async ({ name, email }) => {
+  const user = await prisma.users.create({
+    data: {
+      name,
+      email,
+      password: '',
+      phone: null,
+      role: 'user'
+    }
+  });
+
+  return formatUser(user);
+};
+
+
 module.exports = {
   findByEmail,
   findById,
@@ -158,6 +180,7 @@ module.exports = {
   saveResetToken,
   findByResetToken,
   updatePassword,
-  clearResetToken
+  clearResetToken,
+  createGoogleUser
 };
 /*xuất module này để dùng lại */
