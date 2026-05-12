@@ -1,4 +1,4 @@
-const prisma = require('../configs/prisma');
+import prisma from '../configs/prisma.js';
 
 const createSlug = (value) => {
     return value
@@ -429,7 +429,7 @@ const deleteBrand = async (req, res) => {
     }
 };
 
-module.exports = {
+export {
     getDashboardStats,
     getUsers,
     updateUserRole,

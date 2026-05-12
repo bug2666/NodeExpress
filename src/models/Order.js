@@ -1,5 +1,4 @@
-const prisma = require('../configs/prisma');
-
+import prisma from '../configs/prisma.js';
 
 
 /* admin */
@@ -161,6 +160,13 @@ const createOrderFromCart = async (userId, { shippingName, shippingPhone, shippi
                 data: {
                     stock: {
                         decrement: item.quantity
+                        /* 
+                        stock: { decrement: item.quantity } // stock = stock - item.quantity
+                        stock: { increment: 1 }                // stock = stock + 1
+                        stock: { multiply: 2 }                 // stock = stock * 2
+                        stock: { divide: 2 }                   // stock = stock / 2
+                        stock: { set: 10 }                     // stock = 10
+                        */
                     }
                 }
             });
@@ -223,11 +229,12 @@ const findById = async (orderId, userId, client = prisma) => {
     };
 };
 
-module.exports = {
+export {
     createOrderFromCart,
     findMyOrders,
     findById,
     findAllOrders,
     updateStatus
 };
+
 

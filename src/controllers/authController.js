@@ -1,10 +1,10 @@
-const User = require('../models/User');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const { OAuth2Client } = require('google-auth-library');
+import * as User from '../models/User.js';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import { OAuth2Client } from 'google-auth-library';
+import crypto from 'crypto';
+import sendMail from '../configs/mailer.js';
 
-const crypto = require('crypto');
-const sendMail = require('../configs/mailer');
 
 const generateToken = (userId, userName, role) => {
     return jwt.sign({ userId, userName, role }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -253,7 +253,7 @@ const googleLogin = async (req, res) => {
     }
 };
 
-module.exports = {
+export {
     register,
     login,
     forgotPassword,

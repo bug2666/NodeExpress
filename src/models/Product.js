@@ -1,41 +1,57 @@
-const prisma = require('../configs/prisma');
+import prisma from '../configs/prisma.js';
 
-const findAll = async () => {
-  const products = await prisma.products.findMany({
-    orderBy: {
-      id: 'desc'
-    },
-    include: {
-      categories: true, /* nối với bảng */
-      brands: true,
-      product_images: {
-        orderBy: [
-          { sort_order: 'asc' },
-          { id: 'asc' }
-        ],
-        take: 1
+
+const findAll = async ({ page = 1, limit = 12 } = {}) => {
+  const skip = (page - 1) * limit; // bỏ qua bao nhiêu sản phẩm
+
+  const [products, totalItems] = await Promise.all([
+    prisma.products.findMany({
+      skip,
+      take: limit,
+      orderBy: {
+        id: 'desc'
+      },
+      include: {
+        categories: true,
+        brands: true,
+        product_images: {
+          orderBy: [
+            { sort_order: 'asc' },
+            { id: 'asc' }
+          ],
+          take: 1
+        }
       }
+    }),
+    prisma.products.count()
+  ]);
+
+  return {
+    products: products.map((product) => {
+      const firstImage = product.product_images[0];
+
+      return {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        basePrice: product.base_price,
+        isActive: product.is_active ? 1 : 0,
+        createdAt: product.created_at,
+        updatedAt: product.updated_at,
+        categoryId: product.categories.id,
+        categoryName: product.categories.name,
+        brandId: product.brands.id,
+        brandName: product.brands.name,
+        imageUrl: firstImage?.image_url || null
+      };
+    }),
+    pagination: {
+      page,
+      limit,
+      totalItems,
+      totalPages: Math.ceil(totalItems / limit)
     }
-  });
-
-  return products.map((product) => {
-    const firstImage = product.product_images[0];
-
-    return {
-      id: product.id,
-      name: product.name,
-      description: product.description,
-      basePrice: product.base_price,
-      isActive: product.is_active ? 1 : 0,
-      createdAt: product.created_at,
-      updatedAt: product.updated_at,
-      categoryId: product.categories.id,
-      categoryName: product.categories.name,
-      brandId: product.brands.id,
-      brandName: product.brands.name,
-      imageUrl: firstImage?.image_url || null
-    };
-  });
+  };
 };
 
 
@@ -294,8 +310,7 @@ const deleteImage = async (imageId) => {
 
   return findById(image.product_id);
 };
-
-module.exports = {
+export {
   findAll,
   findById,
   createProduct,

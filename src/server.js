@@ -6,9 +6,12 @@ process.on('unhandledRejection', (error) => {
   console.error('Unhandled Rejection:', error);
 });
 
-require('dotenv').config();
-const app = require('./app');
-const pool = require('./configs/mysql');
+import dotenv from 'dotenv';
+import app from './app.js';
+import pool from './configs/mysql.js';
+
+dotenv.config();
+
 
 const PORT = process.env.PORT || 5000;
 

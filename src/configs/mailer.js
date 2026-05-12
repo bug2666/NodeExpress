@@ -1,4 +1,5 @@
-const { Resend } = require('resend');
+import { Resend } from 'resend';
+
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -11,4 +12,5 @@ const sendMail = async ({ to, subject, html }) => {
     });
 };
 
-module.exports = sendMail;
+export default sendMail;
+

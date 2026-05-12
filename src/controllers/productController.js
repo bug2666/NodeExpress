@@ -1,11 +1,32 @@
-const Product = require('../models/Product');
+import * as Product from '../models/Product.js';
+
 
 const getProducts = async (req, res) => {
   try {
-    const products = await Product.findAll();
-    return res.json(products);
+    // Lấy query từ URL
+    const pageQuery = req.query.page;
+    const limitQuery = req.query.limit;
+    // Ép sang number
+    let page = Number(pageQuery);
+    let limit = Number(limitQuery);
+    if (!page || page < 1) {
+      page = 1;
+    }
+    // Nếu limit không hợp lệ thì dùng mặc định = 12
+    if (!limit || limit < 1) {
+      limit = 12;
+    }
+    const products = await Product.findAll({
+      page: page,
+      limit: limit
+    });
+    // Trả dữ liệu về client
+    return res.status(200).json(products);
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({
+      message: error.message
+    });
+
   }
 };
 
@@ -227,7 +248,7 @@ const deleteImage = async (req, res) => {
   }
 };
 
-module.exports = {
+export {
   getProducts,
   getProductById,
   createProduct,

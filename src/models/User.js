@@ -1,4 +1,5 @@
-const prisma = require('../configs/prisma');
+import prisma from '../configs/prisma.js';
+
 
 
 // định dạng lại data
@@ -18,8 +19,6 @@ const formatUser = (user) => {
     updated_at: user.updated_at
   };
 };
-
-
 
 
 
@@ -172,7 +171,7 @@ const createGoogleUser = async ({ name, email }) => {
 };
 
 
-module.exports = {
+export {
   findByEmail,
   findById,
   createUser,

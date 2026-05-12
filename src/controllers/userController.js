@@ -1,4 +1,5 @@
-const User = require('../models/User');
+import * as User from '../models/User.js';
+
 
 const getMyProfile = async (req, res) => {
     try {
@@ -50,7 +51,7 @@ const updateMyProfile = async (req, res) => {
         return res.status(500).json({ message: error.message });
     }
 }
-module.exports = {
+export {
     getMyProfile,
     updateMyProfile
 };

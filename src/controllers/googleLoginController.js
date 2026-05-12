@@ -1,6 +1,7 @@
-const { OAuth2Client } = require('google-auth-library');
-const User = require('../models/User');
-const jwt = require('jsonwebtoken');
+import { OAuth2Client } from 'google-auth-library';
+import * as User from '../models/User.js';
+import jwt from 'jsonwebtoken';
+
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -51,7 +52,6 @@ const googleLogin = async (req, res) => {
         return res.status(401).json({ message: 'Đăng nhập Google thất bại' });
     }
 };
-
-module.exports = {
+export{
     googleLogin
 };

@@ -1,4 +1,4 @@
-const prisma = require('../configs/prisma');
+import prisma from '../configs/prisma.js';
 
 
 const formatCart = (cart) => {
@@ -198,7 +198,7 @@ const removeCartItem = async (cartId, variantId) => {
     return true;
 };
 
-module.exports = {
+export{
     getOrCreateCartByUserId,
     getCartItems,
     addOrIncreaseCartItem,

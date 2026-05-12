@@ -1,4 +1,5 @@
-const Cart = require('../models/Cart');
+import * as Cart from '../models/Cart.js';
+
 
 const getMyCart = async (req, res) => {
   try {
@@ -94,7 +95,7 @@ const deleteCartItem = async (req, res) => {
   }
 };
 
-module.exports = {
+export {
   getMyCart,
   addItemToCart,
   updateCartItem,

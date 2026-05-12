@@ -1,5 +1,7 @@
-const express = require('express');
-const {
+import express from 'express';
+import authMiddleware from '../middlewares/authMiddleware.js';
+import adminMiddleware from '../middlewares/adminMiddleware.js';
+import {
   getProducts,
   getProductById,
   createProduct,
@@ -11,10 +13,7 @@ const {
   createImage,
   updateImage,
   deleteImage
-} = require('../controllers/productController');
-
-const authMiddleware = require('../middlewares/authMiddleware');
-const adminMiddleware = require('../middlewares/adminMiddleware');
+} from '../controllers/productController.js';
 
 const router = express.Router();
 
@@ -33,4 +32,4 @@ router.post('/:productId/images', authMiddleware, adminMiddleware, createImage);
 router.put('/images/:imageId', authMiddleware, adminMiddleware, updateImage);
 router.delete('/images/:imageId', authMiddleware, adminMiddleware, deleteImage);
 
-module.exports = router;
+export default router;

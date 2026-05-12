@@ -1,16 +1,16 @@
-const express = require('express');
-const router = express.Router();
+import express from 'express';
+import authMiddleware from '../middlewares/authMiddleware.js';
 
-const {
+import {
     register,
     login,
     forgotPassword,
     resetPassword,
     logout,
     googleLogin
-} = require('../controllers/authController');
+} from '../controllers/authController.js';
 
-const authMiddleware = require('../middlewares/authMiddleware');
+const router = express.Router();
 
 router.post('/register', register);
 router.post('/login', login);
@@ -20,5 +20,4 @@ router.post('/logout', authMiddleware, logout);
 
 router.post('/google', googleLogin);
 
-
-module.exports = router;
+export default router
