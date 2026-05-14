@@ -1,5 +1,5 @@
 import prisma from '../configs/prisma.js';
-
+//import { recordTransaction } from './InventoryTransaction.js';
 
 /* admin */
 const findAllOrders = async () => {
@@ -160,7 +160,7 @@ const createOrderFromCart = async (userId, { shippingName, shippingPhone, shippi
                 data: {
                     stock: {
                         decrement: item.quantity
-                        /* 
+                        /*
                         stock: { decrement: item.quantity } // stock = stock - item.quantity
                         stock: { increment: 1 }                // stock = stock + 1
                         stock: { multiply: 2 }                 // stock = stock * 2
@@ -170,7 +170,18 @@ const createOrderFromCart = async (userId, { shippingName, shippingPhone, shippi
                     }
                 }
             });
+
+            await transactionClient.inventory_transactions.create({
+                data: {
+                    variant_id: item.variant_id,
+                    quantity: -item.quantity,
+                    reason: 'order_created',
+                    reference_id: order.id,
+                    notes: `Order #${order.id} tạo`
+                }
+            });
         }
+
 
         await transactionClient.cart_items.deleteMany({
             where: {
@@ -228,6 +239,9 @@ const findById = async (orderId, userId, client = prisma) => {
         })
     };
 };
+
+
+
 
 export {
     createOrderFromCart,

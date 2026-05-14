@@ -163,9 +163,6 @@ const createProduct = async ({ name, description, categoryId, brandId, basePrice
   return findById(product.id);
 };
 
-
-
-
 const updateProduct = async (id, { name, description, categoryId, brandId, basePrice, isActive }) => {
   const existingProduct = await prisma.products.findUnique({
     where: {
@@ -194,23 +191,79 @@ const updateProduct = async (id, { name, description, categoryId, brandId, baseP
   return findById(id);
 };
 
-
 const deleteProduct = async (id) => {
-  try {
-    await prisma.products.delete({
-      where: {
-        id
-      }
-    });
-
-    return true;
-  } catch (error) {
-    if (error.code === 'P2025') {
-      return false;
+  const product = await prisma.products.findUnique({
+    where: {
+      id
     }
+  });
 
-    throw error;
+  if (!product) {
+    return {
+      deleted: false,
+      reason: 'not_found'
+    };
   }
+
+  /* query 1 lúc 4 dữ liệu con xem có không */
+  const [imageCount, variantCount, cartItemCount, orderItemCount] = await Promise.all([
+    prisma.product_images.count({
+      where: {
+        product_id: id
+      }
+    }),
+    prisma.product_variants.count({
+      where: {
+        product_id: id
+      }
+    }),
+    prisma.cart_items.count({
+      where: {
+        product_id: id
+      }
+    }),
+    prisma.order_items.count({
+      where: {
+        product_id: id
+      }
+    })
+  ]);
+
+  const blockers = [];
+
+  if (imageCount > 0) {
+    blockers.push(`Còn ${imageCount} ảnh sản phẩm. Hãy xóa ảnh trước.`);
+  }
+
+  if (variantCount > 0) {
+    blockers.push(`Còn ${variantCount} biến thể size/màu. Hãy xóa biến thể trước.`);
+  }
+
+  if (cartItemCount > 0) {
+    blockers.push(`Sản phẩm đang có trong ${cartItemCount} giỏ hàng.`);
+  }
+
+  if (orderItemCount > 0) {
+    blockers.push(`Sản phẩm đã xuất hiện trong ${orderItemCount} đơn hàng.`);
+  }
+
+  if (blockers.length > 0) {
+    return {
+      deleted: false,
+      reason: 'has_related_data',
+      blockers
+    };
+  }
+
+  await prisma.products.delete({
+    where: {
+      id
+    }
+  });
+
+  return {
+    deleted: true
+  };
 };
 
 const createVariant = async (productId, { size, color, stock, price, sku }) => {

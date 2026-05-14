@@ -1,6 +1,7 @@
 import express from 'express';
 import authMiddleware from '../middlewares/authMiddleware.js';
 import adminMiddleware from '../middlewares/adminMiddleware.js';
+import upload from '../middlewares/uploadMiddleware.js';
 import {
   getProducts,
   getProductById,
@@ -12,7 +13,8 @@ import {
   deleteVariant,
   createImage,
   updateImage,
-  deleteImage
+  deleteImage,
+  createUploadedImage
 } from '../controllers/productController.js';
 
 const router = express.Router();
@@ -31,5 +33,8 @@ router.delete('/variants/:variantId', authMiddleware, adminMiddleware, deleteVar
 router.post('/:productId/images', authMiddleware, adminMiddleware, createImage);
 router.put('/images/:imageId', authMiddleware, adminMiddleware, updateImage);
 router.delete('/images/:imageId', authMiddleware, adminMiddleware, deleteImage);
+
+// Thêm route upload
+router.post('/:productId/images/upload', authMiddleware, adminMiddleware, upload.single('image'), createUploadedImage);
 
 export default router;

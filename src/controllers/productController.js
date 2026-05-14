@@ -1,4 +1,5 @@
 import * as Product from '../models/Product.js';
+import fs from 'fs';
 
 
 const getProducts = async (req, res) => {
@@ -96,10 +97,17 @@ const updateProduct = async (req, res) => {
 const deleteProduct = async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const deleted = await Product.deleteProduct(id);
+    const result = await Product.deleteProduct(id);
 
-    if (!deleted) {
+    if (result.reason === 'not_found') {
       return res.status(404).json({ message: 'Không tìm thấy sản phẩm để xóa' });
+    }
+
+    if (result.reason === 'has_related_data') {
+      return res.status(409).json({
+        message: 'Không thể xóa sản phẩm vì còn dữ liệu liên quan',
+        blockers: result.blockers
+      });
     }
 
     return res.json({ message: 'Xóa sản phẩm thành công' });
@@ -107,6 +115,7 @@ const deleteProduct = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
 
 const createVariant = async (req, res) => {
   try {
@@ -248,6 +257,38 @@ const deleteImage = async (req, res) => {
   }
 };
 
+
+const createUploadedImage = async (req, res) => {
+  try {
+    const productId = Number(req.params.productId);
+    const sortOrder = Number(req.body.sortOrder ?? 0);
+
+    // Kiểm tra file
+    if (!req.file) {
+      return res.status(400).json({ message: 'Vui lòng chọn ảnh' });
+    }
+
+    // Đường dẫn file lưu vào DB
+    const imageUrl = `/uploads/products/${req.file.filename}`;
+
+    // Tạo record ảnh trong DB
+    const product = await Product.createImage(productId, {
+      imageUrl,
+      sortOrder
+    });
+
+    return res.status(201).json(product);
+  } catch (error) {
+    // Xóa file nếu lỗi DB
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+
+
 export {
   getProducts,
   getProductById,
@@ -259,5 +300,6 @@ export {
   deleteVariant,
   createImage,
   updateImage,
-  deleteImage
+  deleteImage,
+  createUploadedImage
 };

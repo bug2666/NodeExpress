@@ -120,7 +120,7 @@ model product_variants {
   cart_items  cart_items[]
   order_items order_items[]
   products    products      @relation(fields: [product_id], references: [id], onDelete: Cascade, map: "fk_product_variants_product")
-
+  inventory_transactions inventory_transactions[]
   @@unique([product_id, size, color], map: "uq_product_variant_combo")
   @@index([product_id], map: "idx_product_variants_product_id")
   @@index([stock], map: "idx_product_variants_stock")
@@ -182,6 +182,24 @@ model users {
 
   @@index([role], map: "idx_users_role")
 }
+
+
+model inventory_transactions {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  variant_id  Int      @db.UnsignedInt
+  quantity    Int      // âm = giảm stock, dương = tăng stock
+  reason      String   @db.VarChar(50)  // "order_created", "order_cancelled", "stock_adjustment", "return"
+  reference_id Int?    @db.UnsignedInt  // order_id hoặc user_id nếu điều chỉnh thủ công
+  notes       String?  @db.VarChar(500)
+  created_by  Int?     @db.UnsignedInt  // admin_id nếu điều chỉnh
+  created_at  DateTime @default(now())
+  product_variants product_variants @relation(fields: [variant_id], references: [id], map: "fk_inv_trans_variant")
+
+  @@index([variant_id], map: "idx_inv_trans_variant")
+  @@index([created_at], map: "idx_inv_trans_created")
+}
+
+
 
 enum orders_payment_method {
   cod

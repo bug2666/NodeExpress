@@ -14,7 +14,9 @@ import {
     getBrands,
     createBrand,
     updateBrand,
-    deleteBrand
+    deleteBrand,
+    getInventoryHistory,
+    adjustVariantStock
 } from '../controllers/adminController.js';
 
 
@@ -37,5 +39,8 @@ router.get('/brands', getBrands);
 router.post('/brands', createBrand);
 router.put('/brands/:id', updateBrand);
 router.delete('/brands/:id', deleteBrand);
+
+router.get('/inventory-history', getInventoryHistory);
+router.put('/variants/:variantId/adjust-stock', adjustVariantStock);
 
 export default router

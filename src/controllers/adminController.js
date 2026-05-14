@@ -32,7 +32,7 @@ const getDashboardStats = async (req, res) => {
                 }
             }
         });
-        const revenueResult = await prisma.orders.aggregate({
+        const revenueResult = await prisma.orders.aggregate({ /* tính toán thống kê trên dữ liệu thay vì lấy từng record */
             where: {
                 order_status: {
                     in: ['completed', 'delivered']
@@ -59,30 +59,47 @@ const getDashboardStats = async (req, res) => {
 
 const getUsers = async (req, res) => {
     try {
-        const users = await prisma.users.findMany({
-            orderBy: {
-                id: 'desc'
-            },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                role: true,
-                created_at: true,
-                updated_at: true
+        const page = Math.max(Number(req.query.page) || 1, 1);
+        const limit = Math.max(Number(req.query.limit) || 10, 1);
+        const skip = (page - 1) * limit;
+
+        const [users, totalItems] = await Promise.all([
+            prisma.users.findMany({
+                skip,
+                take: limit,
+                orderBy: {
+                    id: 'desc'
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone: true,
+                    role: true,
+                    created_at: true,
+                    updated_at: true
+                }
+            }),
+            prisma.users.count()
+        ]);
+
+        return res.json({
+            users: users.map((user) => ({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                role: user.role,
+                createdAt: user.created_at,
+                updatedAt: user.updated_at
+            })),
+            pagination: {
+                page,
+                limit,
+                totalItems,
+                totalPages: Math.ceil(totalItems / limit)
             }
         });
-
-        return res.json(users.map((user) => ({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            role: user.role,
-            createdAt: user.created_at,
-            updatedAt: user.updated_at
-        })));
     } catch (error) {
         return res.status(500).json({ message: error.message });
     }
@@ -429,6 +446,111 @@ const deleteBrand = async (req, res) => {
     }
 };
 
+const getInventoryHistory = async (req, res) => {
+  try {
+    const variantId = Number(req.query.variantId);
+    const limit = Number(req.query.limit) || 20;
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const skip = (page - 1) * limit;
+
+    const [transactions, total] = await Promise.all([
+      prisma.inventory_transactions.findMany({
+        where: {
+          variant_id: variantId
+        },
+        orderBy: {
+          created_at: 'desc'
+        },
+        skip,
+        take: limit
+      }),
+      prisma.inventory_transactions.count({
+        where: { variant_id: variantId }
+      })
+    ]);
+
+    return res.json({
+      transactions: transactions.map((t) => ({
+        id: t.id,
+        variantId: t.variant_id,
+        quantity: t.quantity,
+        reason: t.reason,
+        orderId: t.reference_id,
+        notes: t.notes,
+        createdAt: t.created_at
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+
+
+const adjustVariantStock = async (req, res) => {
+  try {
+    const variantId = Number(req.params.variantId);
+    const { quantity, reason, notes } = req.body;
+    const adminId = req.user.userId;
+
+    if (!quantity || quantity === 0) {
+      return res.status(400).json({ message: 'Số lượng phải khác 0' });
+    }
+
+    // Lấy variant hiện tại
+    const variant = await prisma.product_variants.findUnique({
+      where: { id: variantId }
+    });
+
+    if (!variant) {
+      return res.status(404).json({ message: 'Không tìm thấy variant' });
+    }
+
+    // Kiểm tra stock không âm
+    const newStock = variant.stock + quantity;
+    if (newStock < 0) {
+      return res.status(400).json({ 
+        message: `Tồn kho không đủ. Hiện tại: ${variant.stock}, cần giảm: ${Math.abs(quantity)}` 
+      });
+    }
+
+    // Cập nhật stock
+    const updated = await prisma.product_variants.update({
+      where: { id: variantId },
+      data: { stock: newStock }
+    });
+
+    // Ghi log
+    await prisma.inventory_transactions.create({
+      data: {
+        variant_id: variantId,
+        quantity,  // có thể âm hoặc dương
+        reason: reason || 'stock_adjustment',
+        notes,
+        created_by: adminId
+      }
+    });
+
+    return res.json({
+      message: 'Cập nhật tồn kho thành công',
+      variant: {
+        id: updated.id,
+        stock: updated.stock,
+        oldStock: variant.stock,
+        adjustedBy: quantity
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 export {
     getDashboardStats,
     getUsers,
@@ -441,5 +563,7 @@ export {
     getBrands,
     createBrand,
     updateBrand,
-    deleteBrand
+    deleteBrand,
+    getInventoryHistory,
+    adjustVariantStock
 };
