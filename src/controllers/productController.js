@@ -99,22 +99,27 @@ const deleteProduct = async (req, res) => {
     const id = Number(req.params.id);
     const result = await Product.deleteProduct(id);
 
-    if (result.reason === 'not_found') {
+    if (result.action === 'not_found') {
       return res.status(404).json({ message: 'Không tìm thấy sản phẩm để xóa' });
     }
 
-    if (result.reason === 'has_related_data') {
-      return res.status(409).json({
-        message: 'Không thể xóa sản phẩm vì còn dữ liệu liên quan',
-        blockers: result.blockers
+    if (result.action === 'hidden') {
+      return res.json({
+        message: 'Sản phẩm đã có đơn hàng hoặc lịch sử kho, đã chuyển sang trạng thái ẩn',
+        action: 'hidden',
+        reason: result.reason
       });
     }
 
-    return res.json({ message: 'Xóa sản phẩm thành công' });
+    return res.json({
+      message: 'Xóa sản phẩm thành công',
+      action: 'deleted'
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message });
   }
 };
+
 
 
 const createVariant = async (req, res) => {

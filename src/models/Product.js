@@ -195,76 +195,88 @@ const deleteProduct = async (id) => {
   const product = await prisma.products.findUnique({
     where: {
       id
+    },
+    include: {
+      product_variants: true
     }
   });
 
   if (!product) {
     return {
-      deleted: false,
-      reason: 'not_found'
+      action: 'not_found'
     };
   }
 
-  /* query 1 lúc 4 dữ liệu con xem có không */
-  const [imageCount, variantCount, cartItemCount, orderItemCount] = await Promise.all([
-    prisma.product_images.count({
-      where: {
-        product_id: id
-      }
-    }),
-    prisma.product_variants.count({
-      where: {
-        product_id: id
-      }
-    }),
-    prisma.cart_items.count({
-      where: {
-        product_id: id
-      }
-    }),
+  const variantIds = product.product_variants.map((variant) => variant.id);
+
+  const [orderItemCount, inventoryTransactionCount] = await Promise.all([
     prisma.order_items.count({
       where: {
         product_id: id
       }
-    })
+    }),
+    variantIds.length > 0
+      ? prisma.inventory_transactions.count({
+        where: {
+          variant_id: {
+            in: variantIds
+          }
+        }
+      })
+      : 0
   ]);
 
-  const blockers = [];
+  if (orderItemCount > 0 || inventoryTransactionCount > 0) {
+    const hiddenProduct = await prisma.products.update({
+      where: {
+        id
+      },
+      data: {
+        is_active: false
+      }
+    });
 
-  if (imageCount > 0) {
-    blockers.push(`Còn ${imageCount} ảnh sản phẩm. Hãy xóa ảnh trước.`);
-  }
-
-  if (variantCount > 0) {
-    blockers.push(`Còn ${variantCount} biến thể size/màu. Hãy xóa biến thể trước.`);
-  }
-
-  if (cartItemCount > 0) {
-    blockers.push(`Sản phẩm đang có trong ${cartItemCount} giỏ hàng.`);
-  }
-
-  if (orderItemCount > 0) {
-    blockers.push(`Sản phẩm đã xuất hiện trong ${orderItemCount} đơn hàng.`);
-  }
-
-  if (blockers.length > 0) {
     return {
-      deleted: false,
-      reason: 'has_related_data',
-      blockers
+      action: 'hidden',
+      product: hiddenProduct,
+      reason: {
+        orderItemCount,
+        inventoryTransactionCount
+      }
     };
   }
 
-  await prisma.products.delete({
-    where: {
-      id
-    }
+  await prisma.$transaction(async (tx) => {
+    await tx.cart_items.deleteMany({
+      where: {
+        product_id: id
+      }
+    });
+
+    await tx.product_images.deleteMany({
+      where: {
+        product_id: id
+      }
+    });
+
+    await tx.product_variants.deleteMany({
+      where: {
+        product_id: id
+      }
+    });
+
+    await tx.products.delete({
+      where: {
+        id
+      }
+    });
   });
 
   return {
-    deleted: true
+    action: 'deleted'
   };
 };
+
 
 const createVariant = async (productId, { size, color, stock, price, sku }) => {
   await prisma.product_variants.create({
@@ -306,17 +318,55 @@ const deleteVariant = async (variantId) => {
   });
 
   if (!variant) {
-    return null;
+    return {
+      action: 'not_found'
+    };
   }
 
-  await prisma.product_variants.delete({
-    where: {
-      id: variantId
-    }
+  const [orderItemCount, inventoryTransactionCount] = await Promise.all([
+    prisma.order_items.count({
+      where: {
+        variant_id: variantId
+      }
+    }),
+    prisma.inventory_transactions.count({
+      where: {
+        variant_id: variantId
+      }
+    })
+  ]);
+
+  if (orderItemCount > 0 || inventoryTransactionCount > 0) {
+    return {
+      action: 'blocked',
+      product: await findById(variant.product_id),
+      reason: {
+        orderItemCount,
+        inventoryTransactionCount
+      }
+    };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.cart_items.deleteMany({
+      where: {
+        variant_id: variantId
+      }
+    });
+
+    await tx.product_variants.delete({
+      where: {
+        id: variantId
+      }
+    });
   });
 
-  return findById(variant.product_id);
+  return {
+    action: 'deleted',
+    product: await findById(variant.product_id)
+  };
 };
+
 
 const createImage = async (productId, { imageUrl, sortOrder }) => {
   await prisma.product_images.create({
