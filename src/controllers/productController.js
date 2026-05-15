@@ -266,7 +266,8 @@ const deleteImage = async (req, res) => {
 const createUploadedImage = async (req, res) => {
   try {
     const productId = Number(req.params.productId);
-    const sortOrder = Number(req.body.sortOrder ?? 0);
+    const rawSortOrder = req.body.sortOrder ?? req.body.sort_order ?? 0;
+    const sortOrder = Number(rawSortOrder || 0);
 
     // Kiểm tra file
     if (!req.file) {

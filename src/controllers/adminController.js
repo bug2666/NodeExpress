@@ -13,35 +13,195 @@ const createSlug = (value) => {
 
 const getDashboardStats = async (req, res) => {
     try {
-        const totalProducts = await prisma.products.count();
-        const totalOrders = await prisma.orders.count();
-        const totalUsers = await prisma.users.count({
-            where: {
-                role: 'user'
-            }
-        });
-        const pendingOrders = await prisma.orders.count({
-            where: {
-                order_status: 'pending'
-            }
-        });
-        const lowStockVariants = await prisma.product_variants.count({
-            where: {
-                stock: {
-                    lte: 5
+        const now = new Date();
+
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+
+        const firstMonthDate = new Date(currentYear, currentMonth - 5, 1); /* (year, monthIndex,day) */
+        const secondMonthDate = new Date(currentYear, currentMonth - 4, 1);
+        const thirdMonthDate = new Date(currentYear, currentMonth - 3, 1);
+        const fourthMonthDate = new Date(currentYear, currentMonth - 2, 1);
+        const fifthMonthDate = new Date(currentYear, currentMonth - 1, 1);
+        const sixthMonthDate = new Date(currentYear, currentMonth, 1);
+
+        const monthStart = firstMonthDate;
+
+        const createDashboardMonth = (date) => {
+            const year = date.getFullYear();
+            const monthNumber = date.getMonth() + 1;
+            const monthKey = `${year}-${String(monthNumber).padStart(2, '0')}`; /* chuyển về yy/mm */
+
+            return {
+                key: monthKey,
+                label: `T${monthNumber}`,
+                revenue: 0,
+                orders: 0
+            };
+        };
+
+        const monthKeys = [
+            createDashboardMonth(firstMonthDate),
+            createDashboardMonth(secondMonthDate),
+            createDashboardMonth(thirdMonthDate),
+            createDashboardMonth(fourthMonthDate),
+            createDashboardMonth(fifthMonthDate),
+            createDashboardMonth(sixthMonthDate)
+        ];
+
+
+        const [
+            totalProducts,
+            totalOrders,
+            totalUsers,
+
+            pendingOrders,
+            lowStockVariants, /* biến thể tồn kho <=5 */
+            okStockVariants, /* biến thể tồn kho >5 */
+            revenueResult,
+            recentOrders,
+            ordersByStatusRaw,
+            productsByCategoryRaw
+        ] = await Promise.all([
+            prisma.products.count(),
+            prisma.orders.count(),
+            prisma.users.count({
+                where: {
+                    role: 'user'
                 }
-            }
-        });
-        const revenueResult = await prisma.orders.aggregate({ /* tính toán thống kê trên dữ liệu thay vì lấy từng record */
-            where: {
-                order_status: {
-                    in: ['completed', 'delivered']
+            }),
+            prisma.orders.count({
+                where: {
+                    order_status: 'pending'
                 }
-            },
-            _sum: {
-                total_price: true
+            }),
+            prisma.product_variants.count({
+                where: {
+                    stock: {
+                        lte: 5
+                    }
+                }
+            }),
+            prisma.product_variants.count({
+                where: {
+                    stock: {
+                        gt: 5
+                    }
+                }
+            }),
+            prisma.orders.aggregate({
+                where: {
+                    order_status: {
+                        in: ['completed', 'delivered']
+                    }
+                },
+                _sum: {
+                    total_price: true
+                }
+            }),
+            prisma.orders.findMany({
+                where: {
+                    created_at: {
+                        gte: monthStart
+                    },
+                    order_status: {
+                        in: ['completed', 'delivered']
+                    }
+                },
+                select: {
+                    created_at: true,
+                    total_price: true
+                }
+            }),
+            prisma.orders.groupBy({
+                by: ['order_status'],
+                _count: {
+                    order_status: true
+                }
+            }),
+            prisma.categories.findMany({
+                orderBy: {
+                    products: {
+                        _count: 'desc'
+                    }
+                },
+                take: 6,
+                include: {
+                    _count: {
+                        select: {
+                            products: true
+                        }
+                    }
+                }
+            })
+        ]);
+
+        const revenueByMonth = monthKeys.map((month) => {
+            return {
+                key: month.key,
+                label: month.label,
+                revenue: month.revenue,
+                orders: month.orders
+            };
+        });
+
+        recentOrders.forEach((order) => {
+            const orderCreatedAt = new Date(order.created_at);
+
+            const orderYear = orderCreatedAt.getFullYear();
+            const orderMonth = orderCreatedAt.getMonth() + 1;
+            const orderMonthText = String(orderMonth).padStart(2, '0');
+
+            const orderMonthKey = `${orderYear}-${orderMonthText}`;
+
+            const targetMonth = revenueByMonth.find((month) => {
+                return month.key === orderMonthKey;
+            });
+
+            if (targetMonth) {
+                const orderTotalPrice = Number(order.total_price || 0);
+
+                targetMonth.revenue = targetMonth.revenue + orderTotalPrice;
+                targetMonth.orders = targetMonth.orders + 1;
             }
         });
+
+
+        const statusLabels = {
+            pending: 'Chờ xử lý',
+            shipping: 'Đang giao',
+            delivered: 'Đã giao',
+            completed: 'Hoàn tất',
+            cancelled: 'Đã hủy'
+        };
+
+        const orderStatuses = Object.keys(statusLabels); /* trả về mảng chứa các key của object*/
+
+        const ordersByStatus = orderStatuses.map((status) => {
+            const statusDataFromDatabase = ordersByStatusRaw.find((orderStatusItem) => {
+                return orderStatusItem.order_status === status;
+            });
+            const statusLabel = statusLabels[status]; /* chuyển lable san tiếng việt với mảng phía trên đã cho */
+
+            let totalOrdersByStatus = 0;
+
+            if (statusDataFromDatabase) {
+                totalOrdersByStatus = statusDataFromDatabase._count.order_status;
+            }
+
+            return {
+                status: status,
+                label: statusLabel,
+                count: totalOrdersByStatus
+            };
+        });
+
+
+        const productsByCategory = productsByCategoryRaw.map((category) => ({
+            name: category.name,
+            value: category._count.products
+        }));
+
         const totalRevenue = Number(revenueResult._sum.total_price || 0);
 
         return res.json({
@@ -50,7 +210,14 @@ const getDashboardStats = async (req, res) => {
             totalUsers,
             totalRevenue,
             pendingOrders,
-            lowStockVariants
+            lowStockVariants,
+            revenueByMonth,
+            ordersByStatus,
+            productsByCategory,
+            stockOverview: [
+                { name: 'Ổn định', value: okStockVariants },
+                { name: 'Sắp hết', value: lowStockVariants }
+            ]
         });
     } catch (error) {
         return res.status(500).json({ message: error.message });
@@ -183,7 +350,7 @@ const getCategories = async (req, res) => {
             include: {
                 _count: {
                     select: {
-                        products: true
+                        products: true /* đếm số lượng products liên kết với mỗi category */
                     }
                 }
             }
@@ -447,108 +614,108 @@ const deleteBrand = async (req, res) => {
 };
 
 const getInventoryHistory = async (req, res) => {
-  try {
-    const variantId = Number(req.query.variantId);
-    const limit = Number(req.query.limit) || 20;
-    const page = Math.max(Number(req.query.page) || 1, 1);
-    const skip = (page - 1) * limit;
+    try {
+        const variantId = Number(req.query.variantId);
+        const limit = Number(req.query.limit) || 20;
+        const page = Math.max(Number(req.query.page) || 1, 1);
+        const skip = (page - 1) * limit;
 
-    const [transactions, total] = await Promise.all([
-      prisma.inventory_transactions.findMany({
-        where: {
-          variant_id: variantId
-        },
-        orderBy: {
-          created_at: 'desc'
-        },
-        skip,
-        take: limit
-      }),
-      prisma.inventory_transactions.count({
-        where: { variant_id: variantId }
-      })
-    ]);
+        const [transactions, total] = await Promise.all([
+            prisma.inventory_transactions.findMany({
+                where: {
+                    variant_id: variantId
+                },
+                orderBy: {
+                    created_at: 'desc'
+                },
+                skip,
+                take: limit
+            }),
+            prisma.inventory_transactions.count({
+                where: { variant_id: variantId }
+            })
+        ]);
 
-    return res.json({
-      transactions: transactions.map((t) => ({
-        id: t.id,
-        variantId: t.variant_id,
-        quantity: t.quantity,
-        reason: t.reason,
-        orderId: t.reference_id,
-        notes: t.notes,
-        createdAt: t.created_at
-      })),
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
+        return res.json({
+            transactions: transactions.map((t) => ({
+                id: t.id,
+                variantId: t.variant_id,
+                quantity: t.quantity,
+                reason: t.reason,
+                orderId: t.reference_id,
+                notes: t.notes,
+                createdAt: t.created_at
+            })),
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
 };
 
 
 
 const adjustVariantStock = async (req, res) => {
-  try {
-    const variantId = Number(req.params.variantId);
-    const { quantity, reason, notes } = req.body;
-    const adminId = req.user.userId;
+    try {
+        const variantId = Number(req.params.variantId);
+        const { quantity, reason, notes } = req.body; /* lấy dữ liệu từ request */
+        const adminId = req.user.userId;
 
-    if (!quantity || quantity === 0) {
-      return res.status(400).json({ message: 'Số lượng phải khác 0' });
+        if (!quantity || quantity === 0) {
+            return res.status(400).json({ message: 'Số lượng phải khác 0' });
+        }
+
+        // Lấy variant hiện tại
+        const variant = await prisma.product_variants.findUnique({
+            where: { id: variantId }
+        });
+
+        if (!variant) {
+            return res.status(404).json({ message: 'Không tìm thấy variant' });
+        }
+
+        // Kiểm tra stock không âm
+        const newStock = variant.stock + quantity;
+        if (newStock < 0) {
+            return res.status(400).json({
+                message: `Tồn kho không đủ. Hiện tại: ${variant.stock}, cần giảm: ${Math.abs(quantity)}`
+            });
+        }
+
+        // Cập nhật stock
+        const updated = await prisma.product_variants.update({
+            where: { id: variantId },
+            data: { stock: newStock }
+        });
+
+        // Ghi log
+        await prisma.inventory_transactions.create({
+            data: {
+                variant_id: variantId,
+                quantity,  // có thể âm hoặc dương
+                reason: reason || 'stock_adjustment',
+                notes,
+                created_by: adminId
+            }
+        });
+
+        return res.json({
+            message: 'Cập nhật tồn kho thành công',
+            variant: {
+                id: updated.id,
+                stock: updated.stock,
+                oldStock: variant.stock,
+                adjustedBy: quantity
+            }
+        });
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
     }
-
-    // Lấy variant hiện tại
-    const variant = await prisma.product_variants.findUnique({
-      where: { id: variantId }
-    });
-
-    if (!variant) {
-      return res.status(404).json({ message: 'Không tìm thấy variant' });
-    }
-
-    // Kiểm tra stock không âm
-    const newStock = variant.stock + quantity;
-    if (newStock < 0) {
-      return res.status(400).json({ 
-        message: `Tồn kho không đủ. Hiện tại: ${variant.stock}, cần giảm: ${Math.abs(quantity)}` 
-      });
-    }
-
-    // Cập nhật stock
-    const updated = await prisma.product_variants.update({
-      where: { id: variantId },
-      data: { stock: newStock }
-    });
-
-    // Ghi log
-    await prisma.inventory_transactions.create({
-      data: {
-        variant_id: variantId,
-        quantity,  // có thể âm hoặc dương
-        reason: reason || 'stock_adjustment',
-        notes,
-        created_by: adminId
-      }
-    });
-
-    return res.json({
-      message: 'Cập nhật tồn kho thành công',
-      variant: {
-        id: updated.id,
-        stock: updated.stock,
-        oldStock: variant.stock,
-        adjustedBy: quantity
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
 };
 
 export {
