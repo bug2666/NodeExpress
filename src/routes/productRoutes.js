@@ -14,13 +14,19 @@ import {
   createImage,
   updateImage,
   deleteImage,
-  createUploadedImage
+  createUploadedImage,
+  getPublicCategories,
+  getPublicBrands
 } from '../controllers/productController.js';
 
 const router = express.Router();
 
 router.get('/getProducts', getProducts);
 router.get('/getProductById/:id', getProductById);
+
+// Endpoint public cho filter ở frontend
+router.get('/categories', getPublicCategories);
+router.get('/brands', getPublicBrands);
 
 router.post('/createProduct', authMiddleware, adminMiddleware, createProduct);
 router.put('/updateProduct/:id', authMiddleware, adminMiddleware, updateProduct);

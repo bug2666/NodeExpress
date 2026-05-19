@@ -1,4 +1,5 @@
 import * as Product from '../models/Product.js';
+import prisma from '../configs/prisma.js';
 import fs from 'fs';
 
 
@@ -7,6 +8,11 @@ const getProducts = async (req, res) => {
     // Lấy query từ URL
     const pageQuery = req.query.page;
     const limitQuery = req.query.limit;
+    const search = req.query.search || '';
+    const categoryId = req.query.categoryId || null;
+    const brandId = req.query.brandId || null;
+    const sort = req.query.sort || 'newest';
+
     // Ép sang number
     let page = Number(pageQuery);
     let limit = Number(limitQuery);
@@ -17,10 +23,16 @@ const getProducts = async (req, res) => {
     if (!limit || limit < 1) {
       limit = 12;
     }
+
     const products = await Product.findAll({
       page: page,
-      limit: limit
+      limit: limit,
+      search: search,
+      categoryId: categoryId,
+      brandId: brandId,
+      sort: sort
     });
+
     // Trả dữ liệu về client
     return res.status(200).json(products);
   } catch (error) {
@@ -294,6 +306,51 @@ const createUploadedImage = async (req, res) => {
 };
 
 
+// Endpoint public: lấy danh sách category cho frontend filter
+const getPublicCategories = async (req, res) => {
+  try {
+    const categories = await prisma.categories.findMany({
+      orderBy: { name: 'asc' },
+      include: {
+        _count: {
+          select: {
+            products: {
+              where: { is_active: true }
+            }
+          }
+        }
+      }
+    });
+
+    return res.json(categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      productCount: category._count.products
+    })));
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// Endpoint public: lấy danh sách brand cho frontend filter
+const getPublicBrands = async (req, res) => {
+  try {
+    const brands = await prisma.brands.findMany({
+      orderBy: { name: 'asc' }
+    });
+
+    return res.json(brands.map((brand) => ({
+      id: brand.id,
+      name: brand.name,
+      slug: brand.slug
+    })));
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+
 
 export {
   getProducts,
@@ -307,5 +364,7 @@ export {
   createImage,
   updateImage,
   deleteImage,
-  createUploadedImage
+  createUploadedImage,
+  getPublicCategories,
+  getPublicBrands
 };

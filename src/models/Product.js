@@ -1,16 +1,47 @@
 import prisma from '../configs/prisma.js';
 
 
-const findAll = async ({ page = 1, limit = 12 } = {}) => {
+const findAll = async ({ page = 1, limit = 12, search = '', categoryId = null, brandId = null, sort = 'newest' } = {}) => {
   const skip = (page - 1) * limit; // bỏ qua bao nhiêu sản phẩm
+
+  // Xây dựng điều kiện lọc (where) cho Prisma
+  const where = {};
+
+  // Lọc theo category nếu có
+  if (categoryId) {
+    where.category_id = Number(categoryId);
+  }
+
+  // Lọc theo brand nếu có
+  if (brandId) {
+    where.brand_id = Number(brandId);
+  }
+
+  // Lọc theo từ khóa tìm kiếm (tên sản phẩm hoặc mô tả)
+  if (search && search.trim() !== '') {
+    const keyword = search.trim();
+    where.OR = [
+      { name: { contains: keyword } },
+      { description: { contains: keyword } }
+    ];
+  }
+
+  // Xây dựng cách sắp xếp
+  let orderBy;
+  if (sort === 'price-asc') {
+    orderBy = { base_price: 'asc' };
+  } else if (sort === 'price-desc') {
+    orderBy = { base_price: 'desc' };
+  } else {
+    orderBy = { id: 'desc' };
+  }
 
   const [products, totalItems] = await Promise.all([
     prisma.products.findMany({
+      where,
       skip,
       take: limit,
-      orderBy: {
-        id: 'desc'
-      },
+      orderBy,
       include: {
         categories: true,
         brands: true,
@@ -23,7 +54,7 @@ const findAll = async ({ page = 1, limit = 12 } = {}) => {
         }
       }
     }),
-    prisma.products.count()
+    prisma.products.count({ where })
   ]);
 
   return {
